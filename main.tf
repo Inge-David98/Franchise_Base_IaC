@@ -2,13 +2,17 @@ provider "aws" {
   profile = "dev-local"
   region  = "us-east-1"
 }
-################### ecr.tf###################### 1.
+
+################### ECR ###################### 
+
 resource "aws_ecr_repository" "test_franchise" {
   name = "test-franchise-ms"
 }
 
 
-################### vpc.tf############################ 2.
+################### VPC ############################ 
+
+
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
   enable_dns_support   = true
@@ -31,12 +35,14 @@ resource "aws_subnet" "subnet_b" {
   availability_zone = "us-east-1b"
 }
 
-# internet_gateway.tf
+####################### INTERNET GATEWAY ###############
+
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 }
 
-# route_table.tf
+####################### ROUTE TABLE ###############
+
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.main.id
 
@@ -55,6 +61,10 @@ resource "aws_route_table_association" "subnet_b_association" {
   subnet_id      = aws_subnet.subnet_b.id
   route_table_id = aws_route_table.public_rt.id
 }
+
+
+
+####################### SECURITY GROUP ###############
 
 resource "aws_security_group" "alb_sg" {
   vpc_id = aws_vpc.main.id
@@ -77,15 +87,13 @@ resource "aws_security_group" "alb_sg" {
 resource "aws_security_group" "ecs_sg" {
   vpc_id = aws_vpc.main.id
 
-  # Permitir tráfico entrante desde el ALB en el puerto 8080
   ingress {
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-    security_groups  = [aws_security_group.alb_sg.id] # Permitir tráfico desde el Security Group del ALB
+    security_groups  = [aws_security_group.alb_sg.id] 
   }
 
-  # Permitir tráfico saliente a cualquier destino
   egress {
     from_port   = 0
     to_port     = 0
@@ -94,8 +102,9 @@ resource "aws_security_group" "ecs_sg" {
   }
 }
 
+########################## IAM ##############################
 
-########################################## iam.tf ####################################################### 3.
+
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "ecsTaskExecutionRole"
 
@@ -119,8 +128,8 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
 }
 
 
-###################### alb.tf ##################################
-# alb.tf
+######################## ALB ##################################
+
 resource "aws_lb" "franchise_service_alb" {
   name               = "franchise-service-alb"
   internal           = false
@@ -142,7 +151,7 @@ resource "aws_lb_target_group" "franchise_service_tg" {
   port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
-  target_type = "ip"  # Cambiado a 'ip' para ser compatible con awsvpc
+  target_type = "ip"
   health_check {
     enabled             = true
     healthy_threshold   = 5
@@ -170,7 +179,7 @@ resource "aws_lb_listener" "http" {
 
 resource "aws_lb_listener_rule" "default_rule" {
   listener_arn = aws_lb_listener.http.arn
-  priority     = 100  # Menor prioridad que la anterior
+  priority     = 100
 
   action {
     type             = "forward"
@@ -179,13 +188,14 @@ resource "aws_lb_listener_rule" "default_rule" {
 
   condition {
     path_pattern {
-      values = ["/*"]  # Ruta que coincide con cualquier otra cosa
+      values = ["/*"]
     }
   }
 }
 
 
-###################### ecs.tf ################################# 4.
+###################### ECS#################################
+
 resource "aws_ecs_cluster" "ecs_franchise_cluster" {
   name = "franchise-cluster"
 }
@@ -252,7 +262,7 @@ resource "aws_ecs_service" "franchise_ms_service" {
   network_configuration {
     subnets         = [aws_subnet.subnet_a.id, aws_subnet.subnet_b.id]
     security_groups = [aws_security_group.ecs_sg.id]
-    assign_public_ip = true  # Esto es importante si necesitas acceso a internet
+    assign_public_ip = true 
   }
 
   load_balancer {
@@ -269,7 +279,9 @@ resource "aws_ecs_service" "franchise_ms_service" {
   ]
 }
 
-#######################rds.tf##############################
+####################### RDS ##############################
+
+
 resource "aws_db_instance" "franchise_rds" {
   allocated_storage    = 20
   storage_type         = "gp2"
