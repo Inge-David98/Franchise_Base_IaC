@@ -127,6 +127,37 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+resource "aws_iam_role_policy" "ecs_rds_access_policy" {
+  name = "ecs-rds-access-policy"
+  role = aws_iam_role.ecs_task_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = [
+          "rds:DescribeDBInstances",
+          "rds:Connect",
+          "rds:ModifyDBInstance",
+          "rds:CreateDBSnapshot",
+          "rds:DeleteDBSnapshot",
+          "rds:DescribeDBLogFiles",
+          "rds:DownloadDBLogFilePortion"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
+      },
+      {
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 
 ######################## ALB ##################################
 
@@ -222,7 +253,7 @@ resource "aws_ecs_task_definition" "franchise_service_task" {
       },
       {
         name  = "DB_PASSWORD"
-        value = "12345"
+        value = "123456789"
       },
       {
         name  = "DB_HOST"
@@ -291,7 +322,7 @@ resource "aws_db_instance" "franchise_rds" {
   db_name              = "franchisedb"
   username             = "test"
   password             = "123456789"
-  parameter_group_name = "default.postgres16"
+  parameter_group_name = aws_db_parameter_group.franchise_rds_parameter_group.name
   skip_final_snapshot  = true
   publicly_accessible  = true
   multi_az             = false
@@ -325,3 +356,15 @@ resource "aws_security_group" "rds_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
+resource "aws_db_parameter_group" "franchise_rds_parameter_group" {
+  name        = "franchise-rds-parameter-group"
+  family      = "postgres16"
+  description = "Custom parameter group for franchise RDS"
+
+  parameter {
+    name  = "rds.force_ssl"
+    value = "0"
+  }
+}
+
